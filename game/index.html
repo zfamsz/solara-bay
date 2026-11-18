@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SOLARA BAY — an open-world crime game</title>
+<!-- Solara Bay: Ren Maro (long red hair, maroon robe) + the matte-black Vanta GT hero car, parked on Marina Row at sunset. See game/src/player.js and game/src/vehicles.js. -->
+<style>
+  /* SOLARA BAY look: hot sun, teal sea, warm sand, coral accent. */
+  :root {
+    --ink: #fff8ec; --muted: #ffd9a8; --accent: #ff6b4a; --teal: #19b8a6;
+    --panel: rgba(12, 20, 34, .78); --line: rgba(255, 248, 236, .22);
+    --font-ui: system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-readout: ui-monospace, 'SF Mono', Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0b1626; color: var(--ink); font-family: var(--font-ui); }
+  #game, #game canvas { position: fixed; inset: 0; display: block; }
+  #hud { position: fixed; inset: 0; pointer-events: none; }
+  #hud[hidden] { display: none; }
+
+  #stars { position: fixed; top: 14px; right: 18px; font-size: 26px; letter-spacing: 4px; color: #ffd23f;
+    text-shadow: 0 2px 8px rgba(0,0,0,.7); }
+  #stars .off { color: rgba(255,255,255,.25); }
+  #cash-line { position: fixed; top: 14px; left: 18px; font-family: var(--font-readout); }
+  #cash { font-size: 26px; color: #7dffb0; text-shadow: 0 2px 8px rgba(0,0,0,.7); }
+  #respect { font-size: 12px; color: var(--muted); margin-top: 2px; letter-spacing: .08em; }
+  #health-wrap { position: fixed; left: 18px; top: 78px; width: 210px; }
+  #health-label { font-size: 11px; letter-spacing: .14em; color: var(--muted); }
+  #hp-bar { height: 10px; background: rgba(0,0,0,.55); border: 1px solid var(--line); margin-top: 4px; }
+  #hp-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #ff6b4a, #ffd23f); }
+  #armor-bar { height: 5px; background: rgba(0,0,0,.55); border: 1px solid var(--line); margin-top: 3px; }
+  #armor-fill { height: 100%; width: 0%; background: #7dc4ff; }
+
+  #objective { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); max-width: 46vw;
+    text-align: center; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; }
+  #objective-title { font-size: 12px; letter-spacing: .16em; color: var(--muted); }
+  #objective-text { font-size: 15px; margin-top: 2px; }
+  #objective-dist { font-size: 12px; color: var(--teal); font-family: var(--font-readout); margin-top: 2px; }
+
+  #minimap-wrap { position: fixed; left: 18px; bottom: 18px; width: 196px; height: 196px; }
+  #minimap { width: 100%; height: 100%; border-radius: 50%; border: 3px solid rgba(255,248,236,.85);
+    box-shadow: 0 4px 18px rgba(0,0,0,.55); background: #0e2a3a; display: block; }
+  #minimap-label { position: absolute; left: 50%; bottom: -18px; transform: translateX(-50%);
+    font-size: 11px; letter-spacing: .2em; color: var(--muted); }
+
+  #speedo { position: fixed; right: 18px; bottom: 18px; text-align: right; font-family: var(--font-readout); }
+  #speed-num { font-size: 46px; line-height: 1; text-shadow: 0 2px 8px rgba(0,0,0,.7); }
+  #speed-unit { font-size: 12px; color: var(--muted); }
+  #vehicle-name { font-size: 13px; color: var(--ink); margin-top: 2px; }
+  #weapon-line { font-size: 13px; color: var(--muted); margin-top: 6px; }
+
+  #crosshair { position: fixed; left: 50%; top: 50%; width: 22px; height: 22px; transform: translate(-50%,-50%); }
+  #crosshair[hidden] { display: none; }
+  #crosshair i { position: absolute; background: #fff; box-shadow: 0 0 4px #000; }
+  #crosshair i:nth-child(1) { left: 10px; top: 0; width: 2px; height: 7px; }
+  #crosshair i:nth-child(2) { left: 10px; bottom: 0; width: 2px; height: 7px; }
+  #crosshair i:nth-child(3) { top: 10px; left: 0; height: 2px; width: 7px; }
+  #crosshair i:nth-child(4) { top: 10px; right: 0; height: 2px; width: 7px; }
+
+  #dialogue { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); width: min(560px, 88vw);
+    background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 16px; }
+  #dialogue[hidden] { display: none; }
+  #dialogue-name { color: var(--accent); font-weight: 700; font-size: 13px; letter-spacing: .06em; }
+  #dialogue-text { font-size: 15px; line-height: 1.45; margin-top: 3px; }
+  #dialogue-hint { font-size: 11px; color: var(--muted); margin-top: 6px; }
+
+  #toast { position: fixed; left: 50%; top: 22%; transform: translateX(-50%); text-align: center; }
+  #toast[hidden] { display: none; }
+  #toast-title { font-size: 38px; font-weight: 800; letter-spacing: .04em; text-shadow: 0 3px 14px rgba(0,0,0,.8); }
+  #toast-sub { font-size: 16px; color: var(--muted); margin-top: 4px; text-shadow: 0 2px 8px rgba(0,0,0,.8); }
+  #toast.good #toast-title { color: #7dffb0; }
+  #toast.bad #toast-title { color: #ff6b4a; }
+  #toast.gold #toast-title { color: #ffd23f; }
+
+  #hint { position: fixed; left: 50%; bottom: 210px; transform: translateX(-50%); font-size: 13px;
+    background: rgba(0,0,0,.55); border-radius: 6px; padding: 6px 12px; color: var(--ink); }
+  #hint[hidden] { display: none; }
+
+  #dmg { position: fixed; inset: 0; pointer-events: none; opacity: 0; transition: opacity 150ms linear;
+    background: radial-gradient(ellipse at center, transparent 55%, rgba(255, 40, 0, .55) 100%); }
+  #wasted { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(20,0,0,.55); }
+  #wasted[hidden] { display: none; }
+  #wasted h2 { font-size: 64px; letter-spacing: .2em; color: #ff6b4a; margin: 0; text-align: center; }
+  #wasted p { text-align: center; color: var(--ink); }
+
+  .overlay { position: fixed; inset: 0; display: grid; place-items: center; padding: 24px;
+    background: linear-gradient(180deg, rgba(8,18,34,.25), rgba(8,18,34,.82)); }
+  .overlay[hidden] { display: none; }
+  .panel { width: min(520px, 94vw); padding: 34px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+  .panel h1 { margin: 0; font-size: 46px; line-height: 1; letter-spacing: .02em; font-weight: 900; }
+  .panel h1 em { color: var(--accent); font-style: normal; }
+  .panel .tag { color: var(--teal); letter-spacing: .22em; font-size: 12px; margin-top: 6px; }
+  .panel p { margin: 16px 0 20px; font-size: 15px; line-height: 1.55; color: var(--muted); }
+  .panel button { font: inherit; font-weight: 700; padding: 13px 20px; border: 1px solid var(--accent);
+    border-radius: 8px; background: var(--accent); color: #fff; cursor: pointer; margin-right: 8px; }
+  .panel button.ghost { background: transparent; color: var(--ink); border-color: var(--line); }
+  .panel button:hover { filter: brightness(1.15); }
+  .keys { margin: 22px 0 0; padding: 0; list-style: none; display: grid; gap: 7px; font-size: 13px; color: var(--muted); }
+  .keys kbd { padding: 2px 7px; border: 1px solid var(--line); border-radius: 5px; font-family: var(--font-readout); font-size: 12px; color: var(--ink); }
+</style>
+</head>
+<body>
+<div id="game"></div>
+<div id="dmg"></div>
+
+<div id="hud" aria-hidden="true">
+  <div id="cash-line"><div id="cash">$250</div><div id="respect">SOLARA BAY · ROOKIE</div></div>
+  <div id="health-wrap">
+    <div id="health-label">HEALTH</div>
+    <div id="hp-bar"><div id="hp-fill"></div></div>
+    <div id="armor-bar"><div id="armor-fill"></div></div>
+  </div>
+  <div id="stars"><span class="off">★</span><span class="off">★</span><span class="off">★</span><span class="off">★</span><span class="off">★</span></div>
+  <div id="objective">
+    <div id="objective-title">MISSION</div>
+    <div id="objective-text">Meet Marla at the Marina Row garage.</div>
+    <div id="objective-dist"></div>
+  </div>
+  <div id="minimap-wrap"><canvas id="minimap" width="196" height="196"></canvas><div id="minimap-label">SOLARA BAY</div></div>
+  <div id="speedo">
+    <div><span id="speed-num">0</span> <span id="speed-unit">MPH</span></div>
+    <div id="vehicle-name">ON FOOT</div>
+    <div id="weapon-line">Fists · Click to punch</div>
+  </div>
+  <div id="crosshair" hidden><i></i><i></i><i></i><i></i></div>
+  <div id="dialogue" hidden><div id="dialogue-name"></div><div id="dialogue-text"></div><div id="dialogue-hint">Press E to continue</div></div>
+  <div id="toast" hidden><div id="toast-title"></div><div id="toast-sub"></div></div>
+  <div id="hint" hidden></div>
+</div>
+
+<div id="wasted" hidden><div><h2>BUSTED</h2><p id="wasted-text">The Bay PD took your bail money. You wake up at St. Coral Hospital.</p></div></div>
+
+<div id="overlay" class="overlay">
+  <section class="panel" role="dialog" aria-modal="true" aria-labelledby="overlay-title">
+    <h1 id="overlay-title">SOLARA <em>BAY</em></h1>
+    <div class="tag">AN OPEN-WORLD CRIME GAME</div>
+    <p id="overlay-copy">Sun, salt and stolen cars. You are Ren Maro — tall, red-haired, in a long maroon robe with a gold hex on his chest — fresh off the night bus with $250 and a name to make. Marla Reyes runs the Marina Row garage — do her jobs, dodge the Bay PD, and own this city one street at a time.</p>
+    <button id="play" type="button">Start the story</button>
+    <button id="continue" type="button" class="ghost" hidden>Continue — saved game</button>
+    <ul class="keys">
+      <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move / drive · <kbd>Shift</kbd> Sprint · <kbd>Space</kbd> Handbrake</li>
+      <li><kbd>Mouse drag</kbd> Camera · <kbd>Click</kbd> Punch / shoot · <kbd>F</kbd> Punch · <kbd>Q</kbd> Switch weapon</li>
+      <li><kbd>E</kbd> Enter / steal car · Talk · Advance dialogue · <kbd>P</kbd> Pause · <kbd>M</kbd> Music · <kbd>R</kbd> Reload save</li>
+    </ul>
+  </section>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three/three.module.min.js"
+  }
+}
+</script>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
